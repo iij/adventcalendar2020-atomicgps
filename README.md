@@ -27,3 +27,4 @@
 詳細は各ディレクトリを参照してください
 
 ## Demo
+[名古屋周辺のデモ](https://iij.github.io/adventcalendar2020-atomicgps/.)
