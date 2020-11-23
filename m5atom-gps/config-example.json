@@ -1,0 +1,17 @@
+{
+  "wlan": {
+    "ssid": "*****",
+    "password": "*****"
+  },
+  "mqtt": {
+    "deviceId": "m5atom",
+    "server": "*****",
+    "port": "1883",
+    "user": "*****",
+    "password": "*****",
+    "location": {
+      "topic": "location"
+    }
+  },
+  "interval": "30000"
+}

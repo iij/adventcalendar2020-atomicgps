@@ -1,0 +1,14 @@
+{
+    "mqtt" : {
+        "deviceId" : "m5atom",
+        "url" : "*****",
+        "port" : "1883",
+        "user" : "*****",
+        "password" : "*****"
+    },
+    "mongodb" : {
+        "url" : "*****",
+        "db" : "devices",
+        "collection" : "locations"
+    }
+}

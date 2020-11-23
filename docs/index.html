@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0" />
+  <title>AtomicGPS Demo Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+    crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+    integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+    crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet-hash@0.2.1/leaflet-hash.js"></script>
+  <script src="https://assets.shiftr.io/js/mqtt-2.9.0.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  
+</head>
+
+<body>
+  <div id="mapid" style="position:absolute;top:0;left:0;bottom:0;right:0;"></div>
+  <script>
+    // 地図初期化
+    let map = L.map("mapid", L.extend({
+      zoom: 18,
+      minZoom: 3,
+      center: [35.17097, 136.88435],
+      worldCopyJump: "true"
+    }, L.Hash.parseHash(location.hash)))
+    map.zoomControl.setPosition("bottomright")
+    L.hash(map)
+
+    map.on("zoomend", function (event) {
+      //event.sourceTarget.removeLayer
+    })
+
+    // スケールの追加
+    L.control.scale({
+      imperial: false,
+      metric: true
+    }).addTo(map)
+
+    
+
+    // 現在地アイコン
+    let deviceIcon = L.icon({
+      iconUrl: 'https://3.bp.blogspot.com/-k5XFICQjArU/Vu0kDaE3hPI/AAAAAAAA4-k/S-DwOCwNbtw_J4xfoX6Xdn7JrQ7SPTF9w/s800/ninja2_red.png',
+      iconRetinaUrl: 'https://3.bp.blogspot.com/-k5XFICQjArU/Vu0kDaE3hPI/AAAAAAAA4-k/S-DwOCwNbtw_J4xfoX6Xdn7JrQ7SPTF9w/s800/ninja2_red.png',
+      iconSize: [80, 80],
+      iconAnchor: [40, 40]
+    });
+
+
+    // ベース地図の追加
+    let osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© <a href="http://osm.org/copyright">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
+      maxZoom: 22,
+      maxNativeZoom: 18
+    }).addTo(map)
+
+     
+    // ヒートマップレイヤの作成
+    let heatLayer = L.layerGroup()
+      .addTo(map)
+
+    // GeoJsonのベクトルレイヤの作成
+    L.gridLayer.GeoJson = function (opts) {
+      return new L.GridLayer(opts)
+    }
+    L.gridLayer.GeoJson({
+      maxZoom: 22,
+      minZoom: 10,
+      maxNativeZoom: 16
+    }).on('tileload', function (event) {
+      // タイルロードのタイミングでGeoJsonベクトルタイルを取得してヒートマップを生成
+      // vector-tile-mongoのURL
+      let url = "https://tamago.mydns.jp/api/geojson/{z}/{x}/{y}"
+      fetch(L.Util.template(url, event.coords))
+        .then(res => res.json())
+        .then(geojson => {
+          if (!geojson || geojson.features.length == 0) {
+            return
+          }
+
+          let latlons = geojson.features.map((feature) => {
+            return [feature.geometry.coordinates[1], feature.geometry.coordinates[0], 0.5]
+          })
+
+          event.tile.heat = L.heatLayer(latlons, {
+            radius: 15,
+            maxZoom: 18,
+            minZoom: 10,
+            blur: 15
+          }).addTo(heatLayer)
+        })
+    }).on("tileunload", function (event) {
+      // タイルリソースがリリースされるタイミングでが該当のヒートマップレイヤを削除
+      if (event.tile.heat && heatLayer) {
+        heatLayer.removeLayer(event.tile.heat)
+      }
+    }).addTo(map)
+
+
+    // GPSリアルタイム情報のレイヤの作成
+    let realtimeLayer = L.layerGroup().addTo(map)
+
+    // MQTTでリアルタイム情報を受信するためダミーレイヤにMQTTの処理を追加
+    L.gridLayer.Mqtt = function (opts) {
+      return new L.GridLayer(opts)
+    }
+    L.gridLayer.Mqtt({
+    }).on("add", function (event) {
+      // demo用ユーザー
+      let mqttClient = mqtt.connect('mqtts://21e02fc9:89e01e205d056a34@broker.shiftr.io')
+
+      mqttClient.on('connect', () => {
+        mqttClient.subscribe('/m5atom/location', { qos: 0 })
+      })
+
+      mqttClient.on('message', (topic, message) => {
+        //console.log(message.toString())
+        let payloadJson = JSON.parse(message)
+
+        if (realtimeLayer.nowMarker != undefined) {
+          realtimeLayer.removeLayer(realtimeLayer.nowMarker)
+        }
+
+        let marker = L.marker([parseFloat(payloadJson.lat), parseFloat(payloadJson.lon)],{
+          icon: deviceIcon
+        }).addTo(realtimeLayer)
+
+        realtimeLayer.nowMarker = marker
+
+      })
+    }).addTo(map)
+
+    let baseMaps = {
+      "OpenStreetMap": osmLayer
+    }
+
+    let overlayMaps = {
+      "移動履歴ヒートマップ": heatLayer,
+      "現在地": realtimeLayer
+    }
+
+    L.control.layers(baseMaps, overlayMaps).addTo(map)
+
+
+  </script>
+</body>
+
+</html>

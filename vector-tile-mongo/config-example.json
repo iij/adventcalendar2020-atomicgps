@@ -1,0 +1,10 @@
+{
+    "api": {
+        "port" : 3000
+    },
+    "mongodb" : {
+        "url" : "*****",
+        "db" : "devices",
+        "collection" : "locations"
+    }
+}
