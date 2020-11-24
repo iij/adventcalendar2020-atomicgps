@@ -28,3 +28,7 @@
 
 ## Demo
 [名古屋周辺のデモ](https://iij.github.io/adventcalendar2020-atomicgps/.)
+
+## Note
+ソースコードを短くするために正常処理しか実装していません<br>
+実際に使用する場合はエラー処理を実装してください
